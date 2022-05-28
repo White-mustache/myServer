@@ -19,10 +19,23 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <sys/uio.h>
-#include <map>
+#include<stdint.h>
 
+#include <map>
+#include <list>
+#include "mypro_error.h"
 #include "../lock/locker.h"
 #include "../log/log.h"
+
+void addfd(int epollfd, int fd, bool one_shot, int TRIGMode);
+
+
+enum msgTypes
+{
+	CONNECT = 1, CONNACK, PUBLISH, PUBACK, PUBREC, PUBREL,
+	PUBCOMP, SUBSCRIBE, SUBACK, UNSUBSCRIBE, UNSUBACK,
+	PINGREQ, PINGRESP, DISCONNECT
+};
 
 
 class my_conn
@@ -51,8 +64,12 @@ public:
 
 
 private:
-    
+	int mypro_read_packet(uint8_t *packet_type);
+    void mypro_connect_packet_handle();
+	void mypro_subscribe_packet_handle();
+	int mypro_publish_packet_handle();
 
+	void add_write_queue(char *add_buf);
 
     char *get_line() { return m_read_buf + m_start_line; };
 
@@ -60,8 +77,11 @@ private:
 public:
     static int m_epollfd;
     static int m_user_count;
-
+	//static map<string, my_conn*> m_clientId_map;
     int m_state;  //读为0, 写为1
+
+	
+	string mypro_client_id;
 
 private:
     int m_sockfd;
@@ -69,12 +89,23 @@ private:
     char m_read_buf[READ_BUFFER_SIZE];
     int m_read_idx;
     int m_checked_idx;
+	uint16_t remain_len;
     int m_start_line;
     char m_write_buf[WRITE_BUFFER_SIZE];
     int m_write_idx;
 
-
+	
     int m_TRIGMode;
+	int m_close_log;
+
+	//MQTT相关
+	
+	size_t mypro_client_len;
+
+	std::list<char *> m_write_queue;
+	std::list<my_conn *> m_publish_list;
+	locker write_queue_locker;       //保护请求队列的互斥锁
+	
 
 
 

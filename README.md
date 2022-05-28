@@ -5,7 +5,11 @@
 ## log
 日志系统
 ## myProtocol
-自定义协议
+自定义协议——简单版MQTT
+### 报文格式
+CONNECT 连接报文：报文类型+剩余长度+id长度+id
+PUBLISH发布报文：报文类型+剩余长度+发布信息
+SUBSCRIBE订阅报文：报文类型+剩余长度+id长度+id
 ## threadpool
 线程池
 

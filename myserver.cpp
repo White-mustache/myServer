@@ -10,8 +10,7 @@ MyServer::~MyServer()
 {
 	close(m_epollfd);
 	close(m_listenfd);
-	close(m_pipefd[1]);
-	close(m_pipefd[0]);
+
 	delete[] user_boards;
 	delete m_pool;
 }
@@ -80,23 +79,26 @@ void MyServer::eventListen()
 	inet_pton( AF_INET, serverIP, &address.sin_addr);
     address.sin_port = htons(m_port);
 
-    int flag = 1;
+    struct linger tmp = { 1, 0 };
+    setsockopt( m_listenfd, SOL_SOCKET, SO_LINGER, &tmp, sizeof( tmp ) );
+
+    //int flag = 1;
 	
 	//设置复用，closesocket（一般不会立即关闭而经历TIME_WAIT的过程）后想继续重用该socket
-    setsockopt(m_listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
+    //setsockopt(m_listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
 	
     ret = bind(m_listenfd, (struct sockaddr *)&address, sizeof(address));
     assert(ret >= 0);
     ret = listen(m_listenfd, 5);
     assert(ret >= 0);
 
-	
+	epoll_event events[MAX_EVENT_NUMBER];
 	m_epollfd = epoll_create(5);
 	assert(m_epollfd != -1);
 
 	my_conn::m_epollfd = m_epollfd;
-	user_boards[m_listenfd].init(m_listenfd, address,m_LISTENTrigmode);
-	ret = socketpair(PF_UNIX, SOCK_STREAM, 0, m_pipefd);
+	addfd(m_epollfd, m_listenfd, false, m_LISTENTrigmode);
+	//ret = socketpair(PF_UNIX, SOCK_STREAM, 0, m_pipefd);
 }
 
 void MyServer::addClient(int connfd, struct sockaddr_in client_address)
@@ -108,6 +110,7 @@ void MyServer::addClient(int connfd, struct sockaddr_in client_address)
 
 bool MyServer::dealClinetData()
 {
+	LOG_INFO("deal Clinet Data");
 	struct sockaddr_in client_address;
 	socklen_t client_addr_len = sizeof(client_address);
 	if(0 == m_LISTENTrigmode)
@@ -149,7 +152,7 @@ void MyServer::dealWithRead(int sockfd)
 {
 	if(user_boards[sockfd].read_once())
 	{
-		LOG_INFO("deal with the client(%s)", inet_ntoa(user_boards[sockfd].get_address()->sin_addr));
+		LOG_INFO("deal with the client(%s), id[%s]", inet_ntoa(user_boards[sockfd].get_address()->sin_addr), user_boards[sockfd].mypro_client_id.c_str());
 		m_pool->append_p(user_boards + sockfd);
 	}
 }
@@ -158,7 +161,7 @@ void MyServer::dealWithWrite(int sockfd)
 {
 	if(user_boards[sockfd].write())
 	{
-		LOG_INFO("send data to the client(%s)", inet_ntoa(user_boards[sockfd].get_address()->sin_addr));
+		LOG_INFO("send data to the client(%s), id[%s]", inet_ntoa(user_boards[sockfd].get_address()->sin_addr), user_boards[sockfd].mypro_client_id.c_str());
 	}
 
 }
@@ -168,7 +171,7 @@ void MyServer::dealWithWrite(int sockfd)
 
 void MyServer::eventLoop()
 {
-	epoll_event events[MAX_EVENT_NUMBER];
+	
 	while(1)
 	{
 		int num = epoll_wait(m_epollfd, events, MAX_EVENT_NUMBER, -1);
@@ -181,26 +184,19 @@ void MyServer::eventLoop()
 		for(int i = 0; i < num; i ++)
 		{
 			int sockfd = events[i].data.fd;
-
 			//处理新到的客户链接
 			if(sockfd == m_listenfd)
 			{
-				LOG_INFO("if(sockfd == m_listenfd)\n");
 				bool flag = dealClinetData();
 				if(false == flag)
 					continue;
 			}
 			else if(events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
 			{
-				//服务器端关闭连接，移除对应的定时器
-				//close(sockfd);
+				//服务器端关闭连接
 				user_boards[sockfd].close_conn(1);
 			}
-			//处理信号
-			else if((sockfd == m_pipefd[0]) && (events[i].events & EPOLLIN))
-			{
-				
-			}
+
 			//处理客户连接上接收到的数据
 			else if(events[i].events & EPOLLIN)
 			{

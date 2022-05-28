@@ -45,7 +45,7 @@ public:
 
 	int m_close_log;
 	
-    int m_pipefd[2];
+    //int m_pipefd[2];
     int m_epollfd;
     my_conn *user_boards;
 
