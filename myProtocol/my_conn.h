@@ -64,7 +64,7 @@ public:
 
 
 private:
-	int mypro_read_packet(uint8_t *packet_type);
+	bool mypro_read_packet(uint8_t *packet_type);
     void mypro_connect_packet_handle();
 	void mypro_subscribe_packet_handle();
 	int mypro_publish_packet_handle();
@@ -87,6 +87,7 @@ private:
     int m_sockfd;
     sockaddr_in m_address;
     char m_read_buf[READ_BUFFER_SIZE];
+	char *m_packet_buf;
     int m_read_idx;
     int m_checked_idx;
 	uint16_t remain_len;

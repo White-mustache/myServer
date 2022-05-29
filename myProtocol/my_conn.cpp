@@ -159,28 +159,32 @@ bool my_conn::write()
 }
 
 /**解析报文，解析出控制报文的类型和剩余长度,剩余长度字节固定为2，范围0~65535**/
-int my_conn::mypro_read_packet(uint8_t *packet_type)
+bool my_conn::mypro_read_packet(uint8_t *packet_type)
 {
-	if(m_read_idx <= 3)
-		RETURN_ERROR(M_BUFFER_TOO_SHORT_ERROR);
+	if(m_read_idx - m_checked_idx <= 3)
+	{
+		LOG_ERROR("id[%s] M_BUFFER_TOO_SHORT_ERROR",mypro_client_id.c_str());
+		return false;
+	}
 	*packet_type = (*m_read_buf & 0xF0) >> 4;
 	remain_len = (uint16_t)(*(m_read_buf + 1));
-
-	RETURN_ERROR(M_SUCCESS_ERROR);
+	m_packet_buf = m_read_buf + m_checked_idx;
+	m_checked_idx = m_checked_idx + remain_len + 3;
+	if(m_checked_idx >= m_read_idx)
+		return false;
+	return true;
 }
 
 /**接收发布报文, 转发报文给订阅该报文的客户端**/
 int my_conn::mypro_publish_packet_handle()
 {
-	
 	if(!m_publish_list.empty())
 	{
-		char *publish_buf = (char *)malloc(m_read_idx);
 		std::list<my_conn *>::iterator it;
  		for(it = m_publish_list.begin(); it != m_publish_list.end(); it ++)
  		{
   			my_conn *tmp = *it;
-			tmp->add_write_queue(publish_buf);
+			send(tmp->m_sockfd, m_packet_buf, 3 + remain_len, 0);
  		}
 	}
 	else
@@ -193,9 +197,9 @@ int my_conn::mypro_publish_packet_handle()
 /**接收订阅报文，将订阅信息插入相应列表**/
 void my_conn::mypro_subscribe_packet_handle()
 {
-	uint8_t id_len = (uint8_t)(*(m_read_buf + 3));
+	uint8_t id_len = (uint8_t)(*(m_packet_buf + 3));
 	//MAP中根据id找到对应my_conn
-	string tmp_id(m_read_buf + 4, (size_t)id_len);
+	string tmp_id(m_packet_buf + 4, (size_t)id_len);
 	std::map<string, void *>::iterator it;
 	it = m_clientId_map.find(tmp_id);
 	if(it == m_clientId_map.end())
@@ -215,11 +219,11 @@ void my_conn::mypro_subscribe_packet_handle()
 /**接收连接报文，id和my_conn通过map对应起来**/
 void my_conn::mypro_connect_packet_handle()
 {
-	uint8_t id_len = (uint8_t)(*(m_read_buf + 3));
-	string tmp_id(m_read_buf + 4, (size_t)id_len);
+	uint8_t id_len = (uint8_t)(*(m_packet_buf + 3));
+	string tmp_id(m_packet_buf + 4, (size_t)id_len);
 	mypro_client_id = tmp_id;
 	m_clientId_map[mypro_client_id] = (void *)this;
-	LOG_INFO("connect success, socketfd[%d] id[%s] id_len[%d] this[0x%x] mypro_client_id[%s]",m_sockfd, m_read_buf + 4, id_len, this, mypro_client_id.c_str());
+	LOG_INFO("connect success, socketfd[%d] id[%s] id_len[%d] this[0x%x] mypro_client_id[%s]",m_sockfd, m_packet_buf + 4, id_len, this, mypro_client_id.c_str());
 }
 
 
@@ -230,7 +234,7 @@ void my_conn::add_write_queue(char *add_buf)
 	m_write_queue.push_back(add_buf);
 	write_queue_locker.unlock();
 	//激活写操作
-	modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
+	//modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
 }
 
 
@@ -238,24 +242,24 @@ void my_conn::process()
 {
 	m_write_idx = 0;
 	uint8_t packet_type = 0;
-
-	int ret = mypro_read_packet(&packet_type);
-	
-	switch(packet_type)
+	bool ret = true;
+	//处理粘包
+	while(ret)
 	{
-		case 0:
-			if(M_BUFFER_TOO_SHORT_ERROR == ret)
-				//LOG_ERROR("M_BUFFER_TOO_SHORT_ERROR");
-			break;
-		case CONNECT:
-			mypro_connect_packet_handle();
-			break;
-		case PUBLISH:
-			ret = mypro_publish_packet_handle();
-			break;
-		case SUBSCRIBE:
-			mypro_subscribe_packet_handle();
-			break;
+		ret = mypro_read_packet(&packet_type);
+		
+		switch(packet_type)
+		{
+			case CONNECT:
+				mypro_connect_packet_handle();
+				break;
+			case PUBLISH:
+				mypro_publish_packet_handle();
+				break;
+			case SUBSCRIBE:
+				mypro_subscribe_packet_handle();
+				break;
+		}
 	}
 	
 	
