@@ -166,15 +166,29 @@ void MyServer::dealWithWrite(int sockfd)
 
 }
 
+void MyServer::dealWithTime(time_t cur_time)
+{
+	std::map<string, void *>::iterator it;
+	for(it = m_clientId_map.begin(); it != m_clientId_map.end(); it ++)
+ 	{
+  		my_conn *tmp_conn = (my_conn *)(it->second);
+		if(tmp_conn->m_timeout_in > cur_time)
+			user_boards[tmp_conn->m_sockfd].close_conn(1);
+		if(tmp_conn->m_timeout_in > cur_time)
+			user_boards[tmp_conn->m_sockfd].send_live_packet();
+ 	}
+}
+
 
 
 
 void MyServer::eventLoop()
 {
-	
+		last_time = time(NULL);
 	while(1)
 	{
-		int num = epoll_wait(m_epollfd, events, MAX_EVENT_NUMBER, -1);
+		//阻塞时长 2s
+		int num = epoll_wait(m_epollfd, events, MAX_EVENT_NUMBER, 2);
 		if(num < 0 && errno != EINTR)
 		{
 			LOG_ERROR("%s", "epoll failure");
@@ -206,6 +220,12 @@ void MyServer::eventLoop()
 			{
 				dealWithWrite(sockfd);
 			}
+		}
+		cur_time = time(NULL);
+		if(cur_time - last_time >= 2)
+		{
+			last_time = cur_time;
+			dealWithTime(cur_time);
 		}
 			
 	}

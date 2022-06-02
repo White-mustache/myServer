@@ -27,7 +27,11 @@
 #include "../lock/locker.h"
 #include "../log/log.h"
 
+map<string, void *> m_clientId_map;
+
 void addfd(int epollfd, int fd, bool one_shot, int TRIGMode);
+void removefd(int epollfd, int fd);
+void modfd(int epollfd, int fd, int ev, int TRIGMode);
 
 
 enum msgTypes
@@ -94,7 +98,6 @@ private:
     int m_start_line;
     char m_write_buf[WRITE_BUFFER_SIZE];
     int m_write_idx;
-
 	
     int m_TRIGMode;
 	int m_close_log;
@@ -107,8 +110,9 @@ private:
 	std::list<my_conn *> m_publish_list;
 	locker write_queue_locker;       //保护请求队列的互斥锁
 	
-
-
+	//心跳报文时间相关
+	time_t m_timeout_in;
+	time_t m_timeout_out;
 
 };
 

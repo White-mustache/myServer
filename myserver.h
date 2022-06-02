@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <cassert>
 #include <sys/epoll.h>
+#include <time.h>
 
 #include "./threadpool/threadpool.h"
 #include "./myProtocol/my_conn.h"
@@ -38,6 +39,7 @@ public:
 	bool dealClinetData();
 	void dealWithRead(int sockfd);
 	void dealWithWrite(int sockfd);
+	void dealWithTime(time_t cur_time);
 
 public:
 	const char* serverIP;
@@ -60,6 +62,10 @@ public:
     int m_TRIGMode;
     int m_LISTENTrigmode;
     int m_CONNTrigmode;
+
+	//time相关
+	time_t last_time;
+	time_t cur_time;
 
 	
 };

@@ -4,7 +4,7 @@
 #include <fstream>
 
 //locker m_lock;
-map<string, void *> m_clientId_map;
+
 
 
 //对文件描述符设置非阻塞
@@ -68,6 +68,7 @@ void my_conn::close_conn(bool real_close)
         printf("close %d\n", m_sockfd);
         removefd(m_epollfd, m_sockfd);
         m_sockfd = -1;
+		//map中也要移除----------------------------------
         m_user_count--;
     }
 }
