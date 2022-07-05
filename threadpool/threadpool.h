@@ -54,6 +54,7 @@ threadpool<T>::threadpool(int thread_number, int max_requests) : m_thread_number
         }
     }
 }
+
 template <typename T>
 threadpool<T>::~threadpool()
 {
@@ -74,6 +75,7 @@ bool threadpool<T>::append(T *request, int state)
     m_queuestat.post();
     return true;
 }
+
 template <typename T>
 bool threadpool<T>::append_p(T *request)
 {
@@ -88,6 +90,7 @@ bool threadpool<T>::append_p(T *request)
     m_queuestat.post();
     return true;
 }
+
 template <typename T>
 void *threadpool<T>::worker(void *arg)
 {
@@ -95,6 +98,7 @@ void *threadpool<T>::worker(void *arg)
     pool->run();
     return pool;
 }
+
 template <typename T>
 void threadpool<T>::run()
 {

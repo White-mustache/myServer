@@ -19,18 +19,13 @@ int main(int argc, char *argv[])
 
 
 	MyServer server;
-
 	server.init(PORT, SERIP, thread_num, TRIGMode);
 
 	//日志
     server.log_write();
-
 	server.thread_pool();
-
 	server.trig_mode();
-
 	server.eventListen();
-
 	server.eventLoop();
 
 	return 0;
